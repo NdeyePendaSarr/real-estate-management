@@ -1,0 +1,6 @@
+# Toutes les requêtes vers des fichiers/dossiers inexistants sont dirigées
+# vers le front controller.
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
