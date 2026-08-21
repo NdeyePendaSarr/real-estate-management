@@ -99,11 +99,13 @@ View`. Chaque couche a une responsabilité unique.
 - **Réservation atomique (anti-race condition)** : la vérification de
   disponibilité et l'insertion s'exécutent dans **une même transaction**, sous
   un **verrou sur la ligne du bien** (`SELECT ... FOR UPDATE`) — deux demandes
-  simultanées sur le même bien sont sérialisées.
+  simultanées sur le même bien sont sérialisées, ce qui empêche deux
+  réservations de se chevaucher.
 - **Disponibilité** : une réservation est refusée si le bien n'est pas
   `disponible`, ou si sa période **chevauche** une réservation active
   (`date_debut <= :fin AND :debut <= date_fin`).
-- **Validation des dates** : format valide, début non passé, fin après début.
+- **Validation serveur** : dates (format valide, début non passé, fin après
+  début) et valeurs numériques bornées (prix, chambres, surface ≥ 0).
 - **Confirmation sûre côté admin** : confirmer une réservation **revalide**
   l'absence de conflit avec une autre réservation déjà confirmée (transaction).
 - **Archivage plutôt que suppression** : un bien retiré est **archivé** (masqué
@@ -172,18 +174,18 @@ donnent accès à aucune instance réelle. Mot de passe commun : **`Demo1234!`**
 - Tous les fichiers passent `php -l` sans erreur.
 - Échappement de sortie vérifié (les entrées `<script>` ressortent neutralisées).
 
----
-
 ## 🔭 Pistes d'amélioration
 
 Axes identifiés pour une mise en production, volontairement hors du périmètre
 d'un projet de démonstration :
 
-- **Limitation des tentatives de connexion** (rate limiting par IP + email).
+- **Limitation des tentatives de connexion** (rate limiting par IP + email) pour
+  se prémunir du bruteforce.
 - **Durcissement supplémentaire des uploads** : contrôle des dimensions
-  (`getimagesize`), plafond du nombre d'images et **ré-encodage** (GD/Imagick).
+  (`getimagesize`), plafond du nombre d'images par requête et **ré-encodage**
+  systématique (GD/Imagick) pour neutraliser tout contenu caché.
 - **Sessions** : `session.use_strict_mode`, expiration sur inactivité, et
-  ré-évaluation du rôle depuis la base à chaque requête sensible.
+  ré-évaluation du rôle depuis la base plutôt que depuis la session seule.
 - **Tests automatisés** (PHPUnit) sur l'authentification, les autorisations et
   les règles de réservation.
 

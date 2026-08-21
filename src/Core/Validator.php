@@ -55,6 +55,26 @@ final class Validator
         return $this;
     }
 
+    /** Valeur numérique supérieure ou égale à un minimum (borne métier serveur). */
+    public function minValue(string $field, string $label, float $min): self
+    {
+        $v = $this->value($field);
+        if ($v !== '' && is_numeric($v) && (float) $v < $min) {
+            $this->addError($field, "Le champ « {$label} » ne peut pas être inférieur à {$min}.");
+        }
+        return $this;
+    }
+
+    /** Valeur numérique inférieure ou égale à un maximum. */
+    public function maxValue(string $field, string $label, float $max): self
+    {
+        $v = $this->value($field);
+        if ($v !== '' && is_numeric($v) && (float) $v > $max) {
+            $this->addError($field, "Le champ « {$label} » ne peut pas dépasser {$max}.");
+        }
+        return $this;
+    }
+
     public function in(string $field, string $label, array $allowed): self
     {
         $v = $this->value($field);
