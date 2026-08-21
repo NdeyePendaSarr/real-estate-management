@@ -123,10 +123,14 @@ final class BienController extends Controller
         $v->required('titre', 'Titre')->min('titre', 'Titre', 3)
           ->required('description', 'Description')->min('description', 'Description', 10)
           ->required('prix', 'Prix')->numeric('prix', 'Prix')
+              ->minValue('prix', 'Prix', 0)->maxValue('prix', 'Prix', 1000000000)
           ->required('ville', 'Ville')
           ->in('type', 'Type', self::TYPES)
           ->in('statut', 'Statut', self::STATUTS)
-          ->numeric('chambres', 'Chambres');
+          ->numeric('chambres', 'Chambres')
+              ->minValue('chambres', 'Chambres', 0)->maxValue('chambres', 'Chambres', 100)
+          ->numeric('surface', 'Surface')
+              ->minValue('surface', 'Surface', 0)->maxValue('surface', 'Surface', 100000);
 
         if ($v->fails()) {
             foreach ($v->messages() as $m) {
@@ -140,10 +144,10 @@ final class BienController extends Controller
             'type'        => $this->input('type'),
             'titre'       => $this->input('titre'),
             'description' => $this->input('description'),
-            'prix'        => (int) $this->input('prix'),
+            'prix'        => max(0, (int) $this->input('prix')),
             'ville'       => $this->input('ville'),
-            'chambres'    => (int) ($this->input('chambres') ?: 1),
-            'surface'     => $this->input('surface') !== '' ? (int) $this->input('surface') : null,
+            'chambres'    => max(0, (int) ($this->input('chambres') ?: 1)),
+            'surface'     => $this->input('surface') !== '' ? max(0, (int) $this->input('surface')) : null,
             'statut'      => $this->input('statut'),
         ];
     }

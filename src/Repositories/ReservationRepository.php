@@ -44,6 +44,66 @@ final class ReservationRepository
         return (int) $this->db->lastInsertId();
     }
 
+    /**
+     * Crée une réservation de façon sûre face aux accès concurrents.
+     *
+     * La vérification de disponibilité et l'insertion sont exécutées dans une
+     * même transaction, sous un verrou sur la ligne du bien (SELECT ... FOR
+     * UPDATE). Deux demandes simultanées sur le même bien sont ainsi
+     * sérialisées : la seconde attend la fin de la première, ce qui élimine la
+     * race condition « les deux vérifient libre, les deux insèrent ».
+     *
+     * @return string 'ok' | 'introuvable' | 'indisponible' | 'conflit' | 'erreur'
+     */
+    public function createIfAvailable(int $bienId, int $userId, string $debut, string $fin): string
+    {
+        try {
+            $this->db->beginTransaction();
+
+            // Verrou sur le bien : sérialise les réservations concurrentes du même bien.
+            $stmt = $this->db->prepare('SELECT statut FROM biens WHERE id = :id FOR UPDATE');
+            $stmt->execute(['id' => $bienId]);
+            $bien = $stmt->fetch();
+
+            if (!$bien) {
+                $this->db->rollBack();
+                return 'introuvable';
+            }
+            if ($bien['statut'] !== 'disponible') {
+                $this->db->rollBack();
+                return 'indisponible';
+            }
+
+            // Chevauchement, évalué sous le verrou.
+            $conflit = $this->db->prepare(
+                "SELECT 1 FROM reservations
+                 WHERE bien_id = :b AND statut <> 'annulee'
+                   AND date_debut <= :fin AND :debut <= date_fin
+                 LIMIT 1"
+            );
+            $conflit->execute(['b' => $bienId, 'fin' => $fin, 'debut' => $debut]);
+            if ($conflit->fetchColumn()) {
+                $this->db->rollBack();
+                return 'conflit';
+            }
+
+            $ins = $this->db->prepare(
+                'INSERT INTO reservations (bien_id, utilisateur_id, date_debut, date_fin)
+                 VALUES (:b, :u, :d, :f)'
+            );
+            $ins->execute(['b' => $bienId, 'u' => $userId, 'd' => $debut, 'f' => $fin]);
+
+            $this->db->commit();
+            return 'ok';
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('Réservation impossible : ' . $e->getMessage());
+            return 'erreur';
+        }
+    }
+
     public function forUser(int $userId): array
     {
         $stmt = $this->db->prepare(

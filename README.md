@@ -6,9 +6,26 @@ professionnel pour la gestion des biens et des réservations.
 
 > **Contexte.** Projet initialement réalisé en **Licence 2 (2023)**, puis
 > **entièrement repensé en 2026** : refonte de l'architecture (MVC, PDO,
-> séparation des responsabilités), **sécurisation complète** (contrôle d'accès
-> par rôle, CSRF, XSS, uploads sécurisés, sessions durcies) et ajout de
-> **règles métier** (vérification de disponibilité, validation serveur).
+> séparation des responsabilités), **renforcement de la sécurité sur les
+> principaux vecteurs d'attaque** (contrôle d'accès par rôle, CSRF, XSS,
+> uploads contrôlés, sessions durcies) et ajout de **règles métier**
+> (disponibilité vérifiée en transaction, validation serveur).
+
+---
+
+## 📸 Aperçu
+
+| Accueil | Catalogue des biens |
+| --- | --- |
+| ![Accueil](public/assets/images/demo/home.png) | ![Nos biens](public/assets/images/demo/biens.png) |
+
+| Connexion | Tableau de bord (espace pro) |
+| --- | --- |
+| ![Connexion](public/assets/images/demo/login.png) | ![Tableau de bord](public/assets/images/demo/dashboard-admin.png) |
+
+| Mes réservations (client) | Gestion des réservations (admin) |
+| --- | --- |
+| ![Mes réservations](public/assets/images/demo/reservations.png) | ![Gestion des réservations](public/assets/images/demo/gestion-reservations.png) |
 
 ---
 
@@ -68,9 +85,9 @@ View`. Chaque couche a une responsabilité unique.
 - **Protection CSRF** sur tous les formulaires POST (jeton par session, vérifié
   côté serveur, comparaison à temps constant).
 - **Échappement systématique** en sortie via le helper `e()` (anti-XSS).
-- **Uploads sécurisés** : validation du type réel (`finfo`), de la taille et de
-  l'extension ; **nom de fichier aléatoire** ; stockage contrôlé — impossible
-  d'uploader/exécuter un script.
+- **Uploads contrôlés** : le type MIME réel est vérifié (`finfo`), la taille est
+  limitée, et le fichier est enregistré sous un **nom aléatoire sans conserver
+  l'extension fournie** par l'utilisateur (stockage dans `public/uploads/`).
 - **Mots de passe** hachés avec `password_hash()` / `password_verify()`.
 - **Sessions durcies** : cookie `HttpOnly` + `SameSite`, et
   `session_regenerate_id()` à la connexion (anti-fixation).
@@ -78,10 +95,16 @@ View`. Chaque couche a une responsabilité unique.
 
 ## 🧠 Règles métier
 
-- **Disponibilité** : une réservation est refusée si sa période **chevauche**
-  une réservation active du même bien (`date_debut <= :fin AND :debut <=
-  date_fin`).
-- **Validation des dates** : format valide, début non passé, fin après début.
+- **Réservation atomique (anti-race condition)** : la vérification de
+  disponibilité et l'insertion s'exécutent dans **une même transaction**, sous
+  un **verrou sur la ligne du bien** (`SELECT ... FOR UPDATE`). Deux demandes
+  simultanées sur le même bien sont sérialisées, ce qui empêche deux
+  réservations de se chevaucher.
+- **Disponibilité** : une réservation est refusée si le bien n'est pas
+  `disponible`, ou si sa période **chevauche** une réservation active
+  (`date_debut <= :fin AND :debut <= date_fin`).
+- **Validation serveur** : dates (format valide, début non passé, fin après
+  début) et valeurs numériques bornées (prix, chambres, surface ≥ 0).
 - **Isolation des données** : un client ne voit et n'annule que **ses**
   réservations.
 
@@ -143,6 +166,21 @@ Mot de passe pour tous : **`Demo1234!`**
 - Séparation nette contrôleur / données / vue.
 - Tous les fichiers passent `php -l` sans erreur.
 - Échappement de sortie vérifié (les entrées `<script>` ressortent neutralisées).
+
+## 🔭 Pistes d'amélioration
+
+Axes identifiés pour une mise en production, volontairement hors du périmètre
+d'un projet de démonstration :
+
+- **Limitation des tentatives de connexion** (rate limiting par IP + email) pour
+  se prémunir du bruteforce.
+- **Durcissement des uploads** : contrôle des dimensions (`getimagesize`),
+  plafond du nombre d'images par requête et **ré-encodage** systématique
+  (GD/Imagick) pour neutraliser tout contenu caché.
+- **Sessions** : `session.use_strict_mode`, expiration sur inactivité, et
+  ré-évaluation du rôle depuis la base plutôt que depuis la session seule.
+- **Tests automatisés** (PHPUnit) sur l'authentification, les autorisations et
+  les règles de réservation.
 
 ---
 

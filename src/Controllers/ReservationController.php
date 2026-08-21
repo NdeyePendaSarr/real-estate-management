@@ -8,7 +8,6 @@ use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Csrf;
 use App\Core\Flash;
-use App\Repositories\BienRepository;
 use App\Repositories\ReservationRepository;
 
 final class ReservationController extends Controller
@@ -32,18 +31,8 @@ final class ReservationController extends Controller
         $debut  = $this->input('date_debut');
         $fin    = $this->input('date_fin');
 
+        // Validation des dates (données venant du client).
         $erreurs = $this->validerDates($debut, $fin);
-
-        $bien = (new BienRepository())->find($bienId);
-        if ($bien === null) {
-            $erreurs[] = 'Bien introuvable.';
-        }
-
-        $repo = new ReservationRepository();
-        if ($erreurs === [] && $repo->hasConflict($bienId, $debut, $fin)) {
-            $erreurs[] = 'Ce bien est déjà réservé sur cette période.';
-        }
-
         if ($erreurs !== []) {
             foreach ($erreurs as $m) {
                 Flash::error($m);
@@ -51,9 +40,23 @@ final class ReservationController extends Controller
             redirect('biens/' . $bienId);
         }
 
-        $repo->create($bienId, (int) Auth::id(), $debut, $fin);
-        Flash::success('Votre demande de réservation a été enregistrée. Elle est en attente de confirmation.');
-        redirect('mes-reservations');
+        // Disponibilité + insertion dans une transaction verrouillée (anti-race condition,
+        // et refus si le bien n'est pas disponible).
+        $resultat = (new ReservationRepository())
+            ->createIfAvailable($bienId, (int) Auth::id(), $debut, $fin);
+
+        if ($resultat === 'ok') {
+            Flash::success('Votre demande de réservation a été enregistrée. Elle est en attente de confirmation.');
+            redirect('mes-reservations');
+        }
+
+        Flash::error(match ($resultat) {
+            'introuvable'  => 'Ce bien est introuvable.',
+            'indisponible' => 'Ce bien n\'est plus disponible à la réservation.',
+            'conflit'      => 'Ce bien est déjà réservé sur cette période.',
+            default        => 'Une erreur est survenue, merci de réessayer.',
+        });
+        redirect('biens/' . $bienId);
     }
 
     public function annuler(array $params): string
