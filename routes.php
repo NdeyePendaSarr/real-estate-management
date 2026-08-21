@@ -46,6 +46,7 @@ $router->get('/admin/biens/nouveau', [AdminBienController::class, 'create']);
 $router->post('/admin/biens', [AdminBienController::class, 'store']);
 $router->get('/admin/biens/{id}/modifier', [AdminBienController::class, 'edit']);
 $router->post('/admin/biens/{id}', [AdminBienController::class, 'update']);
-$router->post('/admin/biens/{id}/supprimer', [AdminBienController::class, 'destroy']);
+$router->post('/admin/biens/{id}/archiver', [AdminBienController::class, 'destroy']);
+$router->post('/admin/biens/{id}/restaurer', [AdminBienController::class, 'restore']);
 $router->get('/admin/reservations', [AdminReservationController::class, 'index']);
 $router->post('/admin/reservations/{id}/statut', [AdminReservationController::class, 'updateStatut']);

@@ -99,20 +99,32 @@ final class BienController extends Controller
         redirect('admin/biens');
     }
 
+    /**
+     * Archive un bien (suppression douce) : il disparaît du site public mais
+     * son historique (réservations, images) est conservé pour la traçabilité.
+     */
     public function destroy(array $params): string
     {
         Auth::requireRole('commercial', 'admin');
         Csrf::verify();
 
         $id = (int) ($params['id'] ?? 0);
-        $images = (new ImageRepository())->forBien($id);
+        (new BienRepository())->archive($id);
 
-        (new BienRepository())->delete($id); // CASCADE supprime images/favoris/résa en base
-        foreach ($images as $img) {
-            Upload::remove($img['fichier']);
-        }
+        Flash::success('Bien archivé. Il n\'apparaît plus sur le site public ; son historique est conservé.');
+        redirect('admin/biens');
+    }
 
-        Flash::success('Bien supprimé.');
+    /** Restaure un bien archivé. */
+    public function restore(array $params): string
+    {
+        Auth::requireRole('commercial', 'admin');
+        Csrf::verify();
+
+        $id = (int) ($params['id'] ?? 0);
+        (new BienRepository())->restore($id);
+
+        Flash::success('Bien restauré.');
         redirect('admin/biens');
     }
 

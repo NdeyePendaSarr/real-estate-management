@@ -6,9 +6,26 @@ professionnel pour la gestion des biens et des réservations.
 
 > **Contexte.** Projet initialement réalisé en **Licence 2 (2023)**, puis
 > **entièrement repensé en 2026** : refonte de l'architecture (MVC, PDO,
-> séparation des responsabilités), **sécurisation complète** (contrôle d'accès
-> par rôle, CSRF, XSS, uploads sécurisés, sessions durcies) et ajout de
-> **règles métier** (vérification de disponibilité, validation serveur).
+> séparation des responsabilités), **renforcement de la sécurité sur les
+> principaux vecteurs d'attaque** (contrôle d'accès par rôle, CSRF, XSS,
+> uploads contrôlés, sessions durcies) et ajout de **règles métier**
+> (disponibilité vérifiée en transaction, validation serveur).
+
+---
+
+## 📸 Aperçu
+
+| Accueil | Catalogue des biens |
+| --- | --- |
+| ![Accueil](public/assets/images/demo/home.png) | ![Nos biens](public/assets/images/demo/biens.png) |
+
+| Connexion | Tableau de bord (espace pro) |
+| --- | --- |
+| ![Connexion](public/assets/images/demo/login.png) | ![Tableau de bord](public/assets/images/demo/dashboard-admin.png) |
+
+| Mes réservations (client) | Gestion des réservations (admin) |
+| --- | --- |
+| ![Mes réservations](public/assets/images/demo/reservations.png) | ![Gestion des réservations](public/assets/images/demo/gestion-reservations.png) |
 
 ---
 
@@ -68,9 +85,10 @@ View`. Chaque couche a une responsabilité unique.
 - **Protection CSRF** sur tous les formulaires POST (jeton par session, vérifié
   côté serveur, comparaison à temps constant).
 - **Échappement systématique** en sortie via le helper `e()` (anti-XSS).
-- **Uploads sécurisés** : validation du type réel (`finfo`), de la taille et de
-  l'extension ; **nom de fichier aléatoire** ; stockage contrôlé — impossible
-  d'uploader/exécuter un script.
+- **Uploads contrôlés** : type MIME réel vérifié (`finfo`), taille limitée, et
+  fichier enregistré sous un **nom aléatoire sans conserver l'extension fournie**
+  par l'utilisateur. Le dossier `public/uploads/` **interdit explicitement
+  l'exécution de scripts** (`.htaccess`), en défense de profondeur.
 - **Mots de passe** hachés avec `password_hash()` / `password_verify()`.
 - **Sessions durcies** : cookie `HttpOnly` + `SameSite`, et
   `session_regenerate_id()` à la connexion (anti-fixation).
@@ -78,12 +96,20 @@ View`. Chaque couche a une responsabilité unique.
 
 ## 🧠 Règles métier
 
-- **Disponibilité** : une réservation est refusée si sa période **chevauche**
-  une réservation active du même bien (`date_debut <= :fin AND :debut <=
-  date_fin`).
+- **Réservation atomique (anti-race condition)** : la vérification de
+  disponibilité et l'insertion s'exécutent dans **une même transaction**, sous
+  un **verrou sur la ligne du bien** (`SELECT ... FOR UPDATE`) — deux demandes
+  simultanées sur le même bien sont sérialisées.
+- **Disponibilité** : une réservation est refusée si le bien n'est pas
+  `disponible`, ou si sa période **chevauche** une réservation active
+  (`date_debut <= :fin AND :debut <= date_fin`).
 - **Validation des dates** : format valide, début non passé, fin après début.
+- **Confirmation sûre côté admin** : confirmer une réservation **revalide**
+  l'absence de conflit avec une autre réservation déjà confirmée (transaction).
+- **Archivage plutôt que suppression** : un bien retiré est **archivé** (masqué
+  du site public) et non effacé — l'historique des réservations est préservé.
 - **Isolation des données** : un client ne voit et n'annule que **ses**
-  réservations.
+  réservations (retours distincts : introuvable / non autorisée / déjà annulée).
 
 ## 🗄️ Modèle de données (refondu)
 
@@ -124,7 +150,9 @@ est fourni).
 
 ### Comptes de démonstration
 
-Mot de passe pour tous : **`Demo1234!`**
+Ces comptes sont **fictifs** et n'existent que dans le jeu de données de
+démonstration (`seed.sql`), pour tester l'application **en local**. Ils ne
+donnent accès à aucune instance réelle. Mot de passe commun : **`Demo1234!`**.
 
 | Rôle       | Email                       |
 | ---------- | --------------------------- |
@@ -132,8 +160,8 @@ Mot de passe pour tous : **`Demo1234!`**
 | Commercial | `commercial@demo.example`   |
 | Admin      | `admin@demo.example`        |
 
-> Jeu de données de démonstration anonymisé — à ne jamais utiliser sur une
-> instance réelle.
+> Aucun compte ni identifiant réel ne figure dans ce dépôt. Sur un déploiement
+> réel, remplacez ce jeu de démonstration et régénérez les secrets.
 
 ---
 
@@ -143,6 +171,21 @@ Mot de passe pour tous : **`Demo1234!`**
 - Séparation nette contrôleur / données / vue.
 - Tous les fichiers passent `php -l` sans erreur.
 - Échappement de sortie vérifié (les entrées `<script>` ressortent neutralisées).
+
+---
+
+## 🔭 Pistes d'amélioration
+
+Axes identifiés pour une mise en production, volontairement hors du périmètre
+d'un projet de démonstration :
+
+- **Limitation des tentatives de connexion** (rate limiting par IP + email).
+- **Durcissement supplémentaire des uploads** : contrôle des dimensions
+  (`getimagesize`), plafond du nombre d'images et **ré-encodage** (GD/Imagick).
+- **Sessions** : `session.use_strict_mode`, expiration sur inactivité, et
+  ré-évaluation du rôle depuis la base à chaque requête sensible.
+- **Tests automatisés** (PHPUnit) sur l'authentification, les autorisations et
+  les règles de réservation.
 
 ---
 

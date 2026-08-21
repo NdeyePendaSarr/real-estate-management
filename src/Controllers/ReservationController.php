@@ -62,8 +62,14 @@ final class ReservationController extends Controller
         Csrf::verify();
 
         $id = (int) ($params['id'] ?? 0);
-        (new ReservationRepository())->cancelForUser($id, (int) Auth::id());
-        Flash::success('Réservation annulée.');
+        $resultat = (new ReservationRepository())->cancelForUser($id, (int) Auth::id());
+
+        match ($resultat) {
+            'ok'            => Flash::success('Réservation annulée.'),
+            'deja_annulee'  => Flash::error('Cette réservation est déjà annulée.'),
+            'non_autorisee' => Flash::error('Vous ne pouvez pas annuler cette réservation.'),
+            default         => Flash::error('Réservation introuvable.'),
+        };
         redirect('mes-reservations');
     }
 

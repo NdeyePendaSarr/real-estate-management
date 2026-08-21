@@ -1,0 +1,8 @@
+# Le dossier des uploads ne sert que des fichiers statiques (images).
+# On interdit explicitement toute exécution de script, en défense de profondeur.
+php_flag engine off
+AddType text/plain .php .phtml .php3 .php4 .php5 .phar .pl .py .cgi .asp .sh
+<FilesMatch "\.(php|phtml|php3|php4|php5|phar|pl|py|cgi|asp|sh|htaccess)$">
+    Require all denied
+</FilesMatch>
+Options -ExecCGI -Indexes

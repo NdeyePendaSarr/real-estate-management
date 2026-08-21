@@ -44,9 +44,11 @@ CREATE TABLE biens (
     chambres    TINYINT UNSIGNED NOT NULL DEFAULT 1,
     surface     SMALLINT UNSIGNED NULL,
     statut      ENUM('disponible','loue') NOT NULL DEFAULT 'disponible',
+    archive     TINYINT(1) NOT NULL DEFAULT 0,
     cree_le     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_type (type),
     INDEX idx_statut (statut),
+    INDEX idx_archive (archive),
     INDEX idx_ville (ville)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

@@ -13,8 +13,11 @@
                 <thead><tr><th>Titre</th><th>Type</th><th>Ville</th><th>Prix</th><th>Statut</th><th>Photos</th><th></th></tr></thead>
                 <tbody>
                 <?php foreach ($biens as $b): ?>
-                    <tr>
-                        <td><?= e($b['titre']) ?></td>
+                    <?php $estArchive = (int) ($b['archive'] ?? 0) === 1; ?>
+                    <tr<?= $estArchive ? ' class="row-archived"' : '' ?>>
+                        <td><?= e($b['titre']) ?>
+                            <?php if ($estArchive): ?><span class="pill pill-annulee">Archivé</span><?php endif; ?>
+                        </td>
                         <td><?= e(ucfirst($b['type'])) ?></td>
                         <td><?= e($b['ville']) ?></td>
                         <td><?= e(format_prix($b['prix'])) ?></td>
@@ -22,11 +25,18 @@
                         <td><?= (int) ($b['nb_images'] ?? 0) ?></td>
                         <td class="row-actions">
                             <a class="btn-mini" href="<?= e(url('admin/biens/' . $b['id'] . '/modifier')) ?>">Modifier</a>
-                            <form method="post" action="<?= e(url('admin/biens/' . $b['id'] . '/supprimer')) ?>"
-                                  onsubmit="return confirm('Supprimer ce bien ? Cette action est définitive.');">
-                                <?= csrf_field() ?>
-                                <button class="btn-mini btn-mini-danger" type="submit">Supprimer</button>
-                            </form>
+                            <?php if ($estArchive): ?>
+                                <form method="post" action="<?= e(url('admin/biens/' . $b['id'] . '/restaurer')) ?>">
+                                    <?= csrf_field() ?>
+                                    <button class="btn-mini" type="submit">Restaurer</button>
+                                </form>
+                            <?php else: ?>
+                                <form method="post" action="<?= e(url('admin/biens/' . $b['id'] . '/archiver')) ?>"
+                                      onsubmit="return confirm('Archiver ce bien ? Il sera retiré du site public (historique conservé).');">
+                                    <?= csrf_field() ?>
+                                    <button class="btn-mini btn-mini-danger" type="submit">Archiver</button>
+                                </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

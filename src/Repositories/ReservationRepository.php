@@ -76,20 +76,98 @@ final class ReservationRepository
         return $stmt->fetch() ?: null;
     }
 
-    public function updateStatut(int $id, string $statut): void
+    /**
+     * Changement de statut côté admin, robuste.
+     * - Vérifie que la réservation existe (rowCount / SELECT).
+     * - À la confirmation, revalide l'absence de conflit avec une autre
+     *   réservation CONFIRMÉE du même bien, sous verrou (transaction).
+     *
+     * @return string 'ok' | 'introuvable' | 'conflit' | 'erreur'
+     */
+    public function changeStatut(int $id, string $statut): string
     {
-        $stmt = $this->db->prepare('UPDATE reservations SET statut = :s WHERE id = :id');
-        $stmt->execute(['s' => $statut, 'id' => $id]);
+        // en_attente / annulee : pas de risque de double-réservation.
+        if ($statut !== 'confirmee') {
+            $stmt = $this->db->prepare('UPDATE reservations SET statut = :s WHERE id = :id');
+            $stmt->execute(['s' => $statut, 'id' => $id]);
+            return $stmt->rowCount() > 0 ? 'ok' : 'introuvable';
+        }
+
+        // Confirmation : re-validation du conflit sous verrou.
+        try {
+            $this->db->beginTransaction();
+
+            $stmt = $this->db->prepare(
+                'SELECT bien_id, date_debut, date_fin FROM reservations WHERE id = :id FOR UPDATE'
+            );
+            $stmt->execute(['id' => $id]);
+            $res = $stmt->fetch();
+            if (!$res) {
+                $this->db->rollBack();
+                return 'introuvable';
+            }
+
+            // Verrou sur le bien : sérialise les confirmations concurrentes.
+            $lock = $this->db->prepare('SELECT id FROM biens WHERE id = :b FOR UPDATE');
+            $lock->execute(['b' => $res['bien_id']]);
+
+            // Une autre réservation DÉJÀ CONFIRMÉE chevauche-t-elle la période ?
+            $conflit = $this->db->prepare(
+                "SELECT 1 FROM reservations
+                 WHERE bien_id = :b AND id <> :id AND statut = 'confirmee'
+                   AND date_debut <= :fin AND :debut <= date_fin
+                 LIMIT 1"
+            );
+            $conflit->execute([
+                'b'     => $res['bien_id'],
+                'id'    => $id,
+                'fin'   => $res['date_fin'],
+                'debut' => $res['date_debut'],
+            ]);
+            if ($conflit->fetchColumn()) {
+                $this->db->rollBack();
+                return 'conflit';
+            }
+
+            $upd = $this->db->prepare("UPDATE reservations SET statut = 'confirmee' WHERE id = :id");
+            $upd->execute(['id' => $id]);
+
+            $this->db->commit();
+            return 'ok';
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('Confirmation réservation impossible : ' . $e->getMessage());
+            return 'erreur';
+        }
     }
 
-    /** Un client ne peut annuler que sa propre réservation. */
-    public function cancelForUser(int $id, int $userId): void
+    /**
+     * Annulation par le client, avec distinction des cas.
+     * @return string 'ok' | 'introuvable' | 'non_autorisee' | 'deja_annulee'
+     */
+    public function cancelForUser(int $id, int $userId): string
     {
         $stmt = $this->db->prepare(
-            "UPDATE reservations SET statut = 'annulee'
-             WHERE id = :id AND utilisateur_id = :u"
+            'SELECT utilisateur_id, statut FROM reservations WHERE id = :id'
         );
-        $stmt->execute(['id' => $id, 'u' => $userId]);
+        $stmt->execute(['id' => $id]);
+        $res = $stmt->fetch();
+
+        if (!$res) {
+            return 'introuvable';
+        }
+        if ((int) $res['utilisateur_id'] !== $userId) {
+            return 'non_autorisee';
+        }
+        if ($res['statut'] === 'annulee') {
+            return 'deja_annulee';
+        }
+
+        $upd = $this->db->prepare("UPDATE reservations SET statut = 'annulee' WHERE id = :id");
+        $upd->execute(['id' => $id]);
+        return 'ok';
     }
 
     public function countByStatut(string $statut): int

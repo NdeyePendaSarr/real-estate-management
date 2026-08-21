@@ -34,8 +34,14 @@ final class ReservationController extends Controller
             redirect('admin/reservations');
         }
 
-        (new ReservationRepository())->updateStatut($id, $statut);
-        Flash::success('Statut mis à jour.');
+        $resultat = (new ReservationRepository())->changeStatut($id, $statut);
+
+        match ($resultat) {
+            'ok'          => Flash::success('Statut mis à jour.'),
+            'introuvable' => Flash::error('Réservation introuvable.'),
+            'conflit'     => Flash::error('Confirmation impossible : une autre réservation confirmée occupe déjà cette période.'),
+            default       => Flash::error('Une erreur est survenue, merci de réessayer.'),
+        };
         redirect('admin/reservations');
     }
 }

@@ -26,7 +26,7 @@ final class BienRepository
      */
     public function search(array $filtres, int $page = 1, int $parPage = 9): array
     {
-        $where = ['1 = 1'];
+        $where = ['b.archive = 0'];
         $params = [];
 
         if (!empty($filtres['type'])) {
@@ -95,7 +95,7 @@ final class BienRepository
                 WHERE i.bien_id = b.id ORDER BY i.principale DESC, i.id ASC LIMIT 1
              ) AS image
              FROM biens b
-             WHERE b.statut = 'disponible'
+             WHERE b.statut = 'disponible' AND b.archive = 0
              ORDER BY b.cree_le DESC, b.id DESC
              LIMIT :limit"
         );
@@ -149,14 +149,25 @@ final class BienRepository
         $stmt->execute($data);
     }
 
-    public function delete(int $id): void
+    /**
+     * Archive un bien plutôt que de le supprimer : préserve l'historique
+     * (réservations, images) et le retire simplement du site public.
+     */
+    public function archive(int $id): void
     {
-        $stmt = $this->db->prepare('DELETE FROM biens WHERE id = :id');
+        $stmt = $this->db->prepare('UPDATE biens SET archive = 1 WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+
+    /** Restaure un bien archivé. */
+    public function restore(int $id): void
+    {
+        $stmt = $this->db->prepare('UPDATE biens SET archive = 0 WHERE id = :id');
         $stmt->execute(['id' => $id]);
     }
 
     public function count(): int
     {
-        return (int) $this->db->query('SELECT COUNT(*) FROM biens')->fetchColumn();
+        return (int) $this->db->query('SELECT COUNT(*) FROM biens WHERE archive = 0')->fetchColumn();
     }
 }
