@@ -13,6 +13,18 @@ professionnel pour la gestion des biens et des réservations.
 
 ---
 
+## 🌐 Démo en ligne
+
+L'application est déployée et accessible à l'adresse :
+**👉 [https://agence-immo.42web.io/](https://agence-immo.42web.io/)**
+
+> ⚠️ Hébergement gratuit (InfinityFree) : les temps de réponse peuvent être
+> plus lents qu'en production classique, et l'accès peut être temporairement
+> interrompu. Utilisez les [comptes de démonstration](#comptes-de-démonstration)
+> ci-dessous pour tester les différents rôles (client, commercial, admin).
+
+---
+
 ## 📸 Aperçu
 
 | Accueil | Catalogue des biens |
@@ -153,8 +165,9 @@ est fourni).
 ### Comptes de démonstration
 
 Ces comptes sont **fictifs** et n'existent que dans le jeu de données de
-démonstration (`seed.sql`), pour tester l'application **en local**. Ils ne
-donnent accès à aucune instance réelle. Mot de passe commun : **`Demo1234!`**.
+démonstration (`seed.sql`), utilisé aussi bien en local que sur la
+[démo en ligne](#-démo-en-ligne). Ils ne donnent accès à aucune instance réelle.
+Mot de passe commun : **`Demo1234!`**.
 
 | Rôle       | Email                       |
 | ---------- | --------------------------- |
